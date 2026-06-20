@@ -1,0 +1,14 @@
+mode: predict
+debug: False
+load_ckpt: experiments/vm/checkpoint_99.pkl
+
+components:
+  data: predict
+  transform: vm
+  system: vm
+  model: vm
+
+writer:
+  __target__: vm
+  save_dir: tmp_predict
+  save_name: predict

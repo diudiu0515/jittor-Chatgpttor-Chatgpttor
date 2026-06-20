@@ -1,0 +1,6 @@
+mode: debug
+debug: True
+
+components:
+  data: train
+  transform: vm
