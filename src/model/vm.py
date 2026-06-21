@@ -199,14 +199,12 @@ def patch_based_denoise(model: VelocityModule, pcl_noisy, patch_size=1000, seed_
     assert len(pcl_noisy.shape) == 2
     
     N, d = pcl_noisy.shape
+    original_pcl = pcl_noisy
     num_patches = int(seed_k * N / patch_size)
     pcl_noisy = pcl_noisy.unsqueeze(0)  # (1, N, 3)
     
     seed_pnts, seed_idx = farthest_point_sampling(pcl_noisy, num_patches)
     patch_dists, point_idxs, patches = knn_points(seed_pnts, pcl_noisy, patch_size)
-    
-    from ..data.asset import Exporter
-    pts = patches[0].reshape(-1, 3).detach().numpy()
     
     patches = patches[0]              # (P, M, 3)
     patch_dists = patch_dists[0]      # (P, M)
@@ -241,10 +239,16 @@ def patch_based_denoise(model: VelocityModule, pcl_noisy, patch_size=1000, seed_
     
     patches_denoised = jt.concat(patches_denoised, dim=0)
     patches_denoised = patches_denoised + seed_expand
+    point_idxs_np = point_idxs.numpy()
+    best_weights_idx_np = best_weights_idx.numpy()
     pcl_out = []
     for pidx in range(N):
-        patch_id = best_weights_idx[pidx].item()
-        mask = (point_idxs[patch_id] == pidx)
-        pcl_out.append(patches_denoised[patch_id][mask])
+        patch_id = int(best_weights_idx_np[pidx])
+        local_idx = np.where(point_idxs_np[patch_id] == pidx)[0]
+        if len(local_idx) == 0:
+            pcl_out.append(original_pcl[pidx:pidx+1])
+        else:
+            pcl_out.append(patches_denoised[patch_id, int(local_idx[0])].unsqueeze(0))
     pcl_out = jt.concat(pcl_out, dim=0)
+    assert pcl_out.shape[0] == N
     return pcl_out

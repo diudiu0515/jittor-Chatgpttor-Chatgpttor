@@ -1,4 +1,4 @@
-# 项目训练、评测与优化流程
+# 项目训练、评测与优化流程补充
 
 这份文档把项目的完整实验流程合在一起：如何跑 baseline、如何选择最好的 checkpoint、如何本地比较模型优劣、如何生成提交文件，以及如何记录每次优化实验。
 
@@ -101,11 +101,31 @@ results/dataset_test_noisy/shapenet/<synset_id>/<model_id>/denoised.npy
 
 ### 对测试集推理
 
+configs/task/predict_vm.yaml 中确认：
+```yaml
+  transform: predict
+```
+
+configs/data/predict.yaml 中确认预测阶段使用单 worker，避免多进程 dataloader 漏样本：
+```yaml
+  num_workers: 0
+```
+
+同时确认 writer 配置：
+```yaml
+writer:
+  __target__: vm
+  save_dir: results
+  save_name: denoised
+```
+
 运行：
 
 ```bash
 python run.py --task configs/task/predict_vm.yaml
+find results/dataset_test_noisy/shapenet -name denoised.npy | wc -l
 ```
+
 
 ```text
 每个 .npy 必须是 float32
