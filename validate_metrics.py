@@ -88,7 +88,9 @@ def make_validation_sample(mesh_path, num_samples, noise_std_min, noise_std_max)
         num_samples=num_samples,
         num_vertex_samples=1024,
     )
-    pc_clean, _, _ = normalize_to_unit_sphere(pc_clean)
+    pc_clean, center, scale = normalize_to_unit_sphere(pc_clean)
+    if scale >= 1e-12:
+        vertices = (vertices - center) / scale
     noise_std = np.random.uniform(noise_std_min, noise_std_max)
     noise = np.random.laplace(0, noise_std, size=pc_clean.shape)
     pc_noisy = pc_clean + noise
