@@ -1,0 +1,18 @@
+# datasets
+dataset_train/
+dataset_test_noisy/
+test_gt/
+results/
+experiments/
+logs/
+
+# checkpoints
+*.ckpt
+*.pkl
+*.pth
+*.pt
+
+# cache
+__pycache__/
+*.pyc
+.cache/

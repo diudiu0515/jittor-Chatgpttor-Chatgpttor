@@ -10,5 +10,5 @@ components:
 
 writer:
   __target__: vm
-  save_dir: tmp_predict
-  save_name: predict
+  save_dir: results
+  save_name: denoised
