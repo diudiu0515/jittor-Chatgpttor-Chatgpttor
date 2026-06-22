@@ -198,7 +198,33 @@ python -m pip install -r requirements.txt
 pip install jittor numpy trimesh scipy omegaconf point-cloud-utils
 ```
 
-## 本地评测（需要 GT 数据，仅组委会持有）
+## 本地验证评测
+在训练集上动态生成验证样本并评估模型性能（类似训练时的验证集）：
+
+```bash
+cd /villa/mwq24-srt/repo_check
+CUDA_VISIBLE_DEVICES=0 scripts/run_in_runtime_container.sh python validate_metrics.py \
+    --checkpoint experiments/vm/checkpoint_best_manual.pkl \
+    --limit 50 \
+    --output_csv /workspace/validation_results.csv
+```
+
+**说明：**
+- 从训练集mesh中随机采样生成clean点云
+- 添加随机噪声得到noisy点云
+- 用模型去噪并计算CD和P2S分数
+- 输出百分制分数（与竞赛平台评分公式一致）
+- `--limit` 指定验证样本数量（默认50个）
+- 输出CSV文件包含每个样本的详细指标
+
+**快速验证（仅输出平均分）：**
+```bash
+CUDA_VISIBLE_DEVICES=0 scripts/run_in_runtime_container.sh python quick_validate.py \
+    --checkpoint experiments/vm/checkpoint_best_manual.pkl \
+    --limit 50
+```
+
+## 测试集评测（需要 GT 数据，仅组委会持有）
 ```bash
 python evaluate.py \
     --pred_dir ./results/dataset_test_noisy \
@@ -207,3 +233,5 @@ python evaluate.py \
     --mesh_dir ./dataset_train \
     --workers 8
 ```
+
+**注意：** 测试集的clean GT由组委会保密，本地无法评测。只能通过提交到竞赛平台获得真实分数。
