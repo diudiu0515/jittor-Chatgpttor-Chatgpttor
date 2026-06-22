@@ -16,3 +16,8 @@ logs/
 __pycache__/
 *.pyc
 .cache/
+.jittor_cache/
+dataset_*.zip
+dataset_*.tar.gz
+result*.tar.gz
+*.log

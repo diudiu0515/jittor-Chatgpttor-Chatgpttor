@@ -107,6 +107,7 @@ def main():
     parser.add_argument("--limit", type=int, default=50)
     parser.add_argument("--seed", type=int, default=123)
     parser.add_argument("--output_csv", default="experiments/vm/validation_metrics.csv")
+    parser.add_argument("--no_csv", action="store_true", help="Skip CSV output, only print summary")
     args = parser.parse_args()
 
     jt.set_global_seed(args.seed)
@@ -178,30 +179,40 @@ def main():
     output_dir = os.path.dirname(args.output_csv)
     if output_dir:
         os.makedirs(output_dir, exist_ok=True)
-    with open(args.output_csv, "w", newline="") as f:
-        writer = csv.writer(f)
-        writer.writerow([
-            "sample",
-            "cd_pred",
-            "cd_noisy",
-            "cd_score",
-            "p2s_pred",
-            "p2s_noisy",
-            "p2s_score",
-            "final_score",
-        ])
-        writer.writerows(rows)
+    
+    if not args.no_csv:
+        try:
+            with open(args.output_csv, "w", newline="") as f:
+                writer = csv.writer(f)
+                writer.writerow([
+                    "sample",
+                    "cd_pred",
+                    "cd_noisy",
+                    "cd_score",
+                    "p2s_pred",
+                    "p2s_noisy",
+                    "p2s_score",
+                    "final_score",
+                ])
+                writer.writerows(rows)
+        except PermissionError:
+            print(f"Warning: Cannot write to {args.output_csv}, skipping CSV output")
 
     mean_cd = float(np.mean(cd_scores)) if cd_scores else 0.0
     mean_p2s = float(np.mean(p2s_scores)) if p2s_scores else 0.0
     final_score = 0.5 * mean_cd + 0.5 * mean_p2s
 
+    print(f"\n{'='*60}")
+    print(f"Validation Results")
+    print(f"{'='*60}")
     print(f"checkpoint: {args.checkpoint}")
     print(f"samples: {len(rows)}")
-    print(f"mean_cd_score: {mean_cd:.4f}")
-    print(f"mean_p2s_score: {mean_p2s:.4f}")
-    print(f"final_score: {final_score:.4f}")
-    print(f"output_csv: {args.output_csv}")
+    print(f"mean_cd_score: {mean_cd:.2f}")
+    print(f"mean_p2s_score: {mean_p2s:.2f}")
+    print(f"final_score: {final_score:.2f}")
+    print(f"{'='*60}")
+    if not args.no_csv:
+        print(f"output_csv: {args.output_csv}")
     if not HAS_PCU:
         print("warning: point-cloud-utils not installed, P2S used vertex approximation")
 
