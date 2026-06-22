@@ -15,4 +15,4 @@ optimizer:
   lr: 0.00001
 
 trainer:
-  epochs: 100
+  epochs: 30
