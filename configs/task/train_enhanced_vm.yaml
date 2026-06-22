@@ -1,0 +1,8 @@
+model: enhanced_vm.yaml
+transform: vm.yaml
+train_dataset: train.yaml
+validate_dataset: train.yaml
+
+lr: 1e-4
+max_epochs: 120
+patience: 10

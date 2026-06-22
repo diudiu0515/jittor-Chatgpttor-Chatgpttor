@@ -252,3 +252,86 @@ def patch_based_denoise(model: VelocityModule, pcl_noisy, patch_size=1000, seed_
     pcl_out = jt.concat(pcl_out, dim=0)
     assert pcl_out.shape[0] == N
     return pcl_out
+
+class EnhancedVelocityModule(ModelSpec):
+    """Enhanced Velocity Module with multi-scale feature extraction"""
+    
+    def __init__(self, model_config, transform_config):
+        super().__init__(model_config, transform_config)
+        
+        cfg = self.model_config
+        # geometry
+        self.frame_knn_list = cfg.get('frame_knn_list', [8, 16, 32])
+        self.num_train_points = cfg['num_train_points']
+        
+        # score-matching
+        self.dsm_sigma = cfg['dsm_sigma']
+        
+        # networks with multi-scale feature extraction
+        from .feature import EnhancedFeatureExtractor
+        self.encoder = EnhancedFeatureExtractor(
+            k_list=self.frame_knn_list,
+            input_dim=3,
+            embedding_dim=cfg['feat_embedding_dim']
+        )
+        self.decoder = Decoder(
+            z_dim=self.encoder.embedding_dim,
+            dim=3,
+            out_dim=3,
+            hidden_size=cfg.get('decoder_hidden_dim', 128),
+        )
+
+    def get_supervised_loss(self, pc_noisy, pc_mix, pc_clean):
+        """Same loss function as VelocityModule"""
+        z = self.encoder(pc_noisy)
+        pred = self.decoder(z, pc_noisy)
+        target = (pc_clean - pc_noisy) / self.dsm_sigma
+        loss = jt.sum((pred - target) ** 2) / pc_noisy.shape[0]
+        return loss
+
+    def denoise_vm(self, pc_noisy, epsilon=1e-4, T=100, return_trace=False):
+        """Same denoising as VelocityModule"""
+        B, N, _ = pc_noisy.shape
+        dt = 1.0 / T
+        x = pc_noisy
+        trace = [x.clone().detach()]
+        for t in range(T):
+            t_now = t * dt
+            with jt.no_grad():
+                z = self.encoder(x)
+                v = self.decoder(z, x)
+            if t_now >= 1 - epsilon:
+                x = x + v * self.dsm_sigma * dt * (1.0 / (1 - t_now))
+            else:
+                x = x + v * self.dsm_sigma * dt
+            if return_trace:
+                trace.append(x.clone().detach())
+        if return_trace:
+            return x, trace
+        return x
+
+    def training_step(self, batch: Dict) -> Dict:
+        patch_size = batch['pc_noisy'].shape[-2]
+        pc_noisy = batch['pc_noisy'].reshape(-1, patch_size, 3)
+        pc_mix = batch['pc_mix'].reshape(-1, patch_size, 3)
+        pc_clean = batch['pc_clean'].reshape(-1, patch_size, 3)
+        loss = self.get_supervised_loss(pc_noisy=pc_noisy, pc_mix=pc_mix, pc_clean=pc_clean)
+        return {"loss": loss}
+    
+    def execute(self, **kwargs) -> Dict:
+        return self.training_step(**kwargs)
+
+    def _inference(self, assets: List[Asset]) -> List[Asset]:
+        """Same inference as VelocityModule"""
+        for asset in assets:
+            pc_noisy = asset.sampled_vertices_noisy
+            pc_noisy = jt.array(pc_noisy).float32()
+            pc_noisy = pc_noisy.unsqueeze(0)
+            pc_clean = self.denoise_vm(pc_noisy, T=100, return_trace=False)
+            pc_clean = pc_clean.squeeze(0).detach().numpy()
+            asset.sampled_vertices = pc_clean
+        return assets
+    
+    def process_fn(self, asset: Asset) -> Asset:
+        """Same as VelocityModule"""
+        return asset

@@ -194,3 +194,86 @@ def get_knn_idx(x, y, k, offset=0):
         dist = ((x.unsqueeze(2) - y.unsqueeze(1)) ** 2).sum(-1)
         _, idx = jt.topk(dist, k=K, dim=-1, largest=False)
     return idx[:, :, offset:]
+
+class EnhancedFeatureExtractor(nn.Module):
+    """Multi-scale feature extraction with late fusion"""
+    def __init__(self, k_list=[8, 16, 32], input_dim=3, embedding_dim=256):
+        super().__init__()
+        self.k_list = k_list
+        self.num_scales = len(k_list)
+        self.input_dim = input_dim
+        self.embedding_dim = embedding_dim
+
+        # Separate conv layers for each scale
+        self.conv1_list = nn.ModuleList([
+            EdgeConv(input_dim, embedding_dim // 8, activation='ReLU')
+            for _ in range(self.num_scales)
+        ])
+        self.conv2_list = nn.ModuleList([
+            EdgeConv(embedding_dim // 8, embedding_dim // 4, activation='ReLU')
+            for _ in range(self.num_scales)
+        ])
+        self.conv3_list = nn.ModuleList([
+            EdgeConv(embedding_dim // 8 + embedding_dim // 4, embedding_dim, activation=None)
+            for _ in range(self.num_scales)
+        ])
+        
+        # Final fusion layer
+        self.fusion = nn.Sequential(
+            nn.Linear(embedding_dim * self.num_scales, embedding_dim),
+            nn.ReLU()
+        )
+
+    def get_edge_indices_dict(self, x):
+        """Build KNN graphs for all scales"""
+        B, N, _ = x.shape
+        edge_indices = {}
+        for k in self.k_list:
+            knn_idx = get_knn_idx(x, x, k + 1)[:, :, 1:]
+            base = jt.arange(B) * N
+            base = base.reshape(B, 1, 1)
+            knn_idx = knn_idx + base
+            dst = jt.arange(N).reshape(1, N, 1).broadcast((B, N, k)) + base
+            src = knn_idx.reshape(-1)
+            dst = dst.reshape(-1)
+            edge_indices[k] = jt.stack([src, dst], dim=0)
+        return edge_indices
+
+    def execute(self, x):
+        B, N, _ = x.shape
+        edge_indices_dict = self.get_edge_indices_dict(x)
+        
+        # Conv1: for each scale independently
+        x1_multi_scale = []
+        for i, k in enumerate(self.k_list):
+            edge_index = edge_indices_dict[k]
+            x_flat = x.reshape(B * N, -1)
+            x1 = self.conv1_list[i](x_flat, edge_index)
+            x1_multi_scale.append(x1)
+        x1_multi_scale = [feat.reshape(B, N, -1) for feat in x1_multi_scale]
+
+        # Conv2: for each scale independently
+        x2_multi_scale = []
+        for i, k in enumerate(self.k_list):
+            edge_index = edge_indices_dict[k]
+            x1_flat = x1_multi_scale[i].reshape(B * N, -1)
+            x2 = self.conv2_list[i](x1_flat, edge_index)
+            x2_multi_scale.append(x2)
+        x2_multi_scale = [feat.reshape(B, N, -1) for feat in x2_multi_scale]
+
+        # Conv3: for each scale independently
+        x3_multi_scale = []
+        for i, k in enumerate(self.k_list):
+            edge_index = edge_indices_dict[k]
+            x1_flat = x1_multi_scale[i].reshape(B * N, -1)
+            x2_flat = x2_multi_scale[i].reshape(B * N, -1)
+            x_combined = jt.concat([x1_flat, x2_flat], dim=-1)
+            x3 = self.conv3_list[i](x_combined, edge_index)
+            x3_multi_scale.append(x3)
+        x3_multi_scale = [feat.reshape(B, N, -1) for feat in x3_multi_scale]
+
+        # Late fusion: concatenate and fuse
+        x_fused = jt.concat(x3_multi_scale, dim=-1)
+        x_fused = x_fused.reshape(B * N, -1)
+        out = self.fusion(x_fused)
+        return out.reshape(B, N, -1)
