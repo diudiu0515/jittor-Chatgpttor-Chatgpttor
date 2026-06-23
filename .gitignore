@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Local environments and toolchains
+.venv/
+.venv-py39/
+.toolchain/
+
+# Jittor caches
+.jittor_cache/
+.jittor_cache_runtime/
+.jittor_home/
+
+# Datasets and generated outputs
+dataset_train/
+dataset_test_noisy/
+dataset_train
+dataset_test_noisy
+experiments/
+results/
+logs/
+*.zip
+*.tar.gz
+
+# Local editor/system files
+.DS_Store
+.vscode/

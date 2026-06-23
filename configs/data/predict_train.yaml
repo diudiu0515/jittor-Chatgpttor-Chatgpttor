@@ -1,0 +1,14 @@
+predict_dataset:
+  shuffle: False
+  batch_size: 1
+  num_workers: 8
+  datapath:
+    input_dataset_dir: ./dataset_train
+    use_prob: False
+    loader: npy
+    data_name: noisy.npy
+    ignore_check: True
+    data_path:
+      shapenet: [
+        [./datalist/train.txt, 1.0],
+      ]

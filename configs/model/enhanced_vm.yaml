@@ -1,0 +1,6 @@
+__target__: EnhancedVelocityModule
+frame_knn_list: [16, 32, 48]
+num_train_points: 192
+feat_embedding_dim: 384
+decoder_hidden_dim: 128
+dsm_sigma: 0.01

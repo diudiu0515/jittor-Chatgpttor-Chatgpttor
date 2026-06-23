@@ -1,0 +1,18 @@
+mode: train
+debug: False
+
+components:
+  data: train_enhanced_smoke
+  transform: vm
+  system: enhanced_vm_smoke
+  model: enhanced_vm
+
+loss:
+  loss: 1.0
+
+optimizer:
+  __target__: adam
+  lr: 0.00001
+
+trainer:
+  epochs: 1

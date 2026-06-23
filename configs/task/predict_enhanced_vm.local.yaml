@@ -1,0 +1,14 @@
+mode: predict
+debug: False
+load_ckpt: experiments/enhanced_vm/checkpoint_best_screened.pkl
+
+components:
+  data: predict_submit.local
+  transform: predict
+  system: enhanced_vm
+  model: enhanced_vm
+
+writer:
+  __target__: vm
+  save_dir: results
+  save_name: denoised

@@ -1,0 +1,18 @@
+mode: train
+debug: False
+
+components:
+  data: train_enhanced_v2
+  transform: vm_v2
+  system: enhanced_vm_v2
+  model: enhanced_vm
+
+loss:
+  loss: 1.0
+
+optimizer:
+  __target__: adam
+  lr: 0.00002
+
+trainer:
+  epochs: 150
