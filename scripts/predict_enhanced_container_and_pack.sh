@@ -45,7 +45,20 @@ PY
 
 scripts/run_in_runtime_container.sh python run.py --task "$PRED_TASK"
 
-cd results/dataset_test_noisy
-zip -qr ../result.zip shapenet
-cd "$ROOT_DIR"
+python - <<'PY'
+from pathlib import Path
+import zipfile
+
+root = Path('results/dataset_test_noisy')
+out = Path('results/result.zip')
+files = sorted(p for p in root.rglob('*') if p.is_file())
+if not files:
+    raise SystemExit(f'no prediction files found under {root}')
+if out.exists():
+    out.unlink()
+with zipfile.ZipFile(out, 'w', compression=zipfile.ZIP_DEFLATED) as zf:
+    for p in files:
+        zf.write(p, p.relative_to(root).as_posix())
+print(f'wrote {out} with {len(files)} files')
+PY
 echo "submission: $ROOT_DIR/results/result.zip"

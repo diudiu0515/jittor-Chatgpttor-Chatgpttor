@@ -1,0 +1,20 @@
+mode: train
+debug: False
+
+components:
+  data: train_enhanced_v2_workers4
+  transform: vm_v3_strong
+  system: enhanced_vm_v3_strong
+  model: enhanced_vm
+
+load_ckpt: experiments/enhanced_vm_v2_resume80/checkpoint_best_screened.pkl
+
+loss:
+  loss: 1.0
+
+optimizer:
+  __target__: adam
+  lr: 0.00001
+
+trainer:
+  epochs: 50
