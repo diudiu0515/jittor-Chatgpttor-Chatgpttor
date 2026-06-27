@@ -16,9 +16,9 @@ import numpy as np
 from omegaconf import OmegaConf
 from tqdm import tqdm
 
+from src.model.feature import set_knn_backend
 from src.model.parse import get_model
 from src.model.vm import patch_based_denoise
-from scripts.tta_utils import parse_angles, tta_denoise
 
 jt.flags.use_cuda = 1
 
@@ -37,6 +37,7 @@ def parse_args():
     parser.add_argument("--output_root", default="results/dataset_test_noisy")
     parser.add_argument("--zip", default="results/result.zip")
     parser.add_argument("--limit", type=int, default=0)
+    parser.add_argument("--offset", type=int, default=0, help="Skip first N samples")
     parser.add_argument("--seed", type=int, default=123)
     parser.add_argument("--resume", action="store_true")
     parser.add_argument("--tta", action="store_true", help="Enable rotation TTA and iterative denoising")
@@ -47,6 +48,13 @@ def parse_args():
     parser.add_argument("--patch_size", type=int, default=1000)
     parser.add_argument("--seed_k", type=int, default=6)
     parser.add_argument("--seed_k_alpha", type=int, default=1)
+    parser.add_argument("--patch_step", type=int, default=0)
+    parser.add_argument("--knn_backend", choices=["jittor", "numpy"], default="numpy")
+    parser.add_argument("--denoise_steps", type=int, default=4)
+    parser.add_argument("--step_size", type=float, default=1.0)
+    parser.add_argument("--momentum", type=float, default=0.0)
+    parser.add_argument("--step_decay", choices=["none", "linear"], default="none")
+    parser.add_argument("--blend", type=float, default=1.0)
     parser.add_argument("--bilateral", action="store_true")
     parser.add_argument("--bilateral_k", type=int, default=20)
     parser.add_argument("--bilateral_sigma_s", type=float, default=0.01)
@@ -63,11 +71,24 @@ def main():
     output_root = Path(args.output_root)
     zip_path = Path(args.zip)
     if not args.resume:
-        if output_root.exists():
-            shutil.rmtree(output_root)
-        if zip_path.exists():
-            zip_path.unlink()
-    output_root.mkdir(parents=True, exist_ok=True)
+        try:
+            if output_root.exists():
+                shutil.rmtree(output_root)
+            if zip_path.exists():
+                zip_path.unlink()
+        except PermissionError:
+            print(f"Warning: Could not remove {output_root}, assuming it's clean")
+    
+    try:
+        output_root.mkdir(parents=True, exist_ok=True)
+    except PermissionError:
+        import os
+        try:
+            os.makedirs(str(output_root), mode=0o777, exist_ok=True)
+        except Exception as e:
+            if not output_root.exists():
+                raise
+            print(f"Warning: Directory {output_root} access issue: {e}, continuing...")
 
     transform_config = load_yaml(args.transform_config)
     model_config = load_yaml(args.model_config)
@@ -75,8 +96,11 @@ def main():
     model.load(args.checkpoint)
     model.set_predict(True)
     model.eval()
+    set_knn_backend(args.knn_backend)
 
     rel_paths = [line.strip() for line in open(args.list) if line.strip()]
+    if args.offset > 0:
+        rel_paths = rel_paths[args.offset:]
     if args.limit > 0:
         rel_paths = rel_paths[:args.limit]
 
@@ -110,13 +134,23 @@ def main():
                     patch_size=args.patch_size,
                     seed_k=args.seed_k,
                     seed_k_alpha=args.seed_k_alpha,
+                    patch_step=args.patch_step or None,
+                    denoise_steps=args.denoise_steps,
+                    step_size=args.step_size,
+                    momentum=args.momentum,
+                    step_decay=args.step_decay,
+                    blend=args.blend,
                 )
                 if pc_denoised is None:
                     raise RuntimeError(f"denoise failed: {rel}")
                 pc_denoised_np = pc_denoised.detach().numpy().astype(np.float32)
             if pc_denoised_np.shape != pc_noisy.shape:
                 raise RuntimeError(f"shape mismatch for {rel}: {pc_denoised_np.shape} != {pc_noisy.shape}")
-            out_path.parent.mkdir(parents=True, exist_ok=True)
+            try:
+                out_path.parent.mkdir(parents=True, exist_ok=True)
+            except PermissionError:
+                import os
+                os.makedirs(out_path.parent, mode=0o777, exist_ok=True)
             np.save(out_path, pc_denoised_np)
 
     zip_path.parent.mkdir(parents=True, exist_ok=True)

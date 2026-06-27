@@ -2,6 +2,30 @@ from typing import Optional
 from jittor import nn
 
 import jittor as jt
+import numpy as np
+from scipy.spatial import cKDTree
+
+KNN_BACKEND = "jittor"
+
+
+def set_knn_backend(backend: str):
+    global KNN_BACKEND
+    if backend not in {"jittor", "numpy"}:
+        raise ValueError(f"unsupported knn backend: {backend}")
+    KNN_BACKEND = backend
+
+
+def get_knn_idx_np(x, y, k, offset=0):
+    x_np = np.asarray(x.detach().numpy(), dtype=np.float32)
+    y_np = np.asarray(y.detach().numpy(), dtype=np.float32)
+    K = k + offset
+    all_idx = []
+    for xb, yb in zip(x_np, y_np):
+        _, idx = cKDTree(yb).query(xb, k=K)
+        if K == 1:
+            idx = idx[:, None]
+        all_idx.append(idx[:, offset:])
+    return jt.array(np.stack(all_idx, axis=0).astype(np.int32))
 
 class EdgeConv(nn.Module):
     def __init__(self, in_channels, out_channels, activation: Optional[str]='ReLU'):
@@ -275,6 +299,9 @@ def get_knn_idx(x, y, k, offset=0):
     y: (B, M, d)
     return: (B, N, k)
     """
+    if KNN_BACKEND == "numpy":
+        return get_knn_idx_np(x, y, k, offset=offset)
+
     K = k + offset
     if x.shape[-1] == 3:
         _, idx = jt.misc.knn(x, y, K)

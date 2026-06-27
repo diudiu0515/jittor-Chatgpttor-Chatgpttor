@@ -187,7 +187,9 @@ class DummySystem():
             
             checkpoint_path = os.path.join(self.ckpt_save_dir, f'{self.ckpt_save_name}_{epoch}.pkl')
             os.makedirs(self.ckpt_save_dir, exist_ok=True)
-            self.model.save(checkpoint_path)
+            tmp_checkpoint_path = f'{checkpoint_path}.tmp'
+            self.model.save(tmp_checkpoint_path)
+            os.replace(tmp_checkpoint_path, checkpoint_path)
     
     def predict(self):
         # only iterate once

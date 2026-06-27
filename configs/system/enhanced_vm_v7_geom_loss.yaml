@@ -1,0 +1,4 @@
+__target__: vm
+
+ckpt_save_dir: experiments/enhanced_vm_v7_geom_loss
+ckpt_save_name: checkpoint

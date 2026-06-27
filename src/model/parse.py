@@ -1,10 +1,13 @@
 from .spec import ModelSpec
-from .vm import EnhancedVelocityModule, VelocityModule
+from .vm import EnhancedVelocityModule, EnhancedVelocityModuleCDRepulsion, EnhancedVelocityModuleScaleOffsetLoss, EnhancedVelocityModuleStructureLoss, VelocityModule
 
 def get_model(model_config, **kwargs) -> ModelSpec:
     MAP = {
         'VelocityModule': VelocityModule,
         'EnhancedVelocityModule': EnhancedVelocityModule,
+        'EnhancedVelocityModuleCDRepulsion': EnhancedVelocityModuleCDRepulsion,
+        'EnhancedVelocityModuleScaleOffsetLoss': EnhancedVelocityModuleScaleOffsetLoss,
+        'EnhancedVelocityModuleStructureLoss': EnhancedVelocityModuleStructureLoss,
     }
     __target__ = model_config['__target__']
     del model_config['__target__']
